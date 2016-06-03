@@ -7,7 +7,7 @@ output: html_document
 
 Now that we have the "list2015q4.csv" and "all2015q4.csv"" files, the next step is to add in the information on individual funds. Then we will go through the tedious and lengthy, though very important, process of cleaning the data and "smoothing" it out.  
 
-To add summary info to our **list** file, and to clean them up and fix inconsistencies, we are going to use the "all2015q4.R" file and run the code, which is copied below.  
+To add summary info to our **list** file, and to clean them up and fix inconsistencies, we are going to use the "clean2015q4.R" file and run the code, which is copied below.  
 ```{r eval=FALSE}
 #Set the working directory to wherever you have it set from before
 setwd("myFolder")
