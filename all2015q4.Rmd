@@ -117,7 +117,9 @@ write.csv(all2015q4, file = "all2015q4clean1.csv")
 Below is more cusip information that needs fixing. Again, the problems that arise each quarter are unique to that quarter, so this will serve as a guideline for how to go about looking at each quarter and making sure the cusip information (which is very important) is accurate. 
 ```{r eval=FALSE}
 all2015q4 <- read.csv("all2015q4clean1.csv")
-#These lines currently blocked off are specifics that may only apply to a certain period, with certain misfiled filings. You should look into the cusips for each quarter and not only get a feel for what is mislabeled, but which positions are of material size, and need to be hardcoded/manually tweaked to not miss something important, as shown below.  
+#These lines currently blocked off are specifics that may only apply to a certain period, with certain misfiled filings. 
+#You should look into the cusips for each quarter and not only get a feel for what is mislabeled, but which positions are of 
+#material size, and need to be hardcoded/manually tweaked to not miss something important, as shown below.  
 
 #library(plyr)
 #revalue(all2015q4$cusip, c("00BFG3KF2" = "G65431101")) -> all2015q4$cusip
@@ -216,7 +218,9 @@ colnames(count2)[colnames(count2) == 'n'] <- 'stocks'
 merged <- merge(count, count2, by.x = "cik", by.y = "cik")
 merged$amt <- (merged$n/merged$stocks)*100
 
-#Before we set the filter that will account for the misreporting funds, we need to actually look at the funds to really understand whether or not they misreported or not. I compare my AUM sums to that of the AUM amounts listed on whalewisdom.com. You want to look for any AUM levels that are already high (above $100M) and where the total number of stocks are low (less than 15) to see if its misreporting or just an outlier...
+#Before we set the filter that will account for the misreporting funds, we need to actually look at the funds to really understand whether or not they misreported or not. 
+#I compare my AUM sums to that of the AUM amounts listed on whalewisdom.com. 
+#You want to look for any AUM levels that are already high (above $100M) and where the total number of stocks are low (less than 15) to see if its misreporting or just an outlier.
 
 collapsed <- all2015q4 %>%
   group_by(cik) %>%
@@ -225,7 +229,8 @@ list <- select(list2015q4, cik, fund)
 list <- merge(list, collapsed, by = "cik")
 merged2 <- select(merged, cik, stocks, amt)
 list <- merge(list, merged2, by = "cik")
-#Of all the funds that had over 50% of potentially misreported value levels...only a few were actually correct, and will be omitted from the below value decrease. The cik's which I will be omitting are: 1588012, 1520770.
+#Of all the funds that had over 50% of potentially misreported value levels...only a few were actually correct, and will be omitted from the below value decrease. 
+#The cik's which I will be omitting are: 1588012, 1520770.
 merged <- filter(merged, amt > 60) #currently we are setting the minimum percentage that is necessary to conclude misreporting at >60%
 merged <- filter(merged, cik != 1588012 & cik != 1520770)
 merged$n <- NULL
