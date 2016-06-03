@@ -1,10 +1,3 @@
----
-title: "Read Me"
-author: "Alex Kramer"
-date: "May 23, 2016"
-output: html_document
----
-
 #Scraping 13F Filings
 
 As part of my undergraduate thesis, I was tasked with learning R and writing code to catalog 13F filings from the SEC to analyze the similarity between the long equity portfolios of institutional investment funds. In the following sections, I will provide some background information on the 13F filings, explain how I scraped the information, the steps I had to take to clean and smooth the data, and provide some potential future applications of the data.  
@@ -42,4 +35,3 @@ Additionally, while the above code calculates the contemporaneous cosine similar
 ##Section 5: Exploring the Data
 
 The final section provides an overview of more cuts and slices of the data that you can use to better understand and visualize the data. This section will touch upon useful plotting techniques using the ggplot2 package, as well as some summary statistics and information. This code can be found in the "summary2015q4.Rmd" file. 
-```
