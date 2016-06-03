@@ -42,9 +42,4 @@ Additionally, while the above code calculates the contemporaneous cosine similar
 ##Section 5: Exploring the Data
 
 The final section provides an overview of more cuts and slices of the data that you can use to better understand and visualize the data. This section will touch upon useful plotting techniques using the ggplot2 package, as well as some summary statistics and information. This code can be found in the "summary2015q4.Rmd" file. 
-
-```{r, include=FALSE}
-   # add this chunk to end of mycode.rmd
-   file.rename(from="~/Google Drive/alexkramer/Independent Study/Read Me.Rmd", 
-               to="Read Me.md")
 ```
