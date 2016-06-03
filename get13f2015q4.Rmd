@@ -1,0 +1,160 @@
+---
+title: "get13f2015q4"
+author: "Alex Kramer"
+date: "May 10, 2016"
+output: html_document
+---
+
+The first bit of code you need to run is below, and this is the "get13f2015q4.Rmd" file. For the purpose of this model, we are going to download all of the positions in 2015 Q4. The commentary below is important for understanding what each piece of code is doing and will be helpful to know for in the future as well.   
+
+This is going to get the list of funds and all of their individual positions for the quarter ending 2015 Q4.  
+You can set the working drive to a directory of your choosing, just make it a new folder, as there will end up being a lot of files you will be downloading and creating and it can get quite messy. Also, depending on your version of R and the OS of your computer, some of these packages (setInternet,XML,xml2,etc.) may not work, but it should not be a problem if they do not load, or return errors as they are there to include everything you might need.   
+```{r eval=FALSE}
+setwd("myFolder")
+setInternet2(use=FALSE)
+library(XML)
+library(xml2)
+library(RCurl)
+library(dplyr)
+library(stringr)
+```
+First we need to grab the list of filings from master.idx file (this file exists for each quarter)  
+This is a very large file (about 220K rows) and takes a while to read  
+
+In the URL, change the year and quarter (currently, 2016 and QTR1) to the desired period  
+
+**IMPORTANT:** FOR THE QUARTER IN WHICH YOU WANT THE POSITIONS OF THE FUNDS, YOU NEED TO HARDCODE IN THE FOLLOWING QUARTER.
+THIS IS WHY WE HAVE 2016 Q1, WHEN WE WANT THE FILINGS FROM THE FOURTH QUARTER (Q4) of 2015.
+```{r eval=FALSE}
+list_all <- read.table("ftp://ftp.sec.gov/edgar/full-index/2016/QTR1/master.idx", skip=10, sep = "|", fill=TRUE, quote = "")
+```
+There are several files associated with each filing.    
+The primary (and all inclusive) one is the .txt file.  
+It has the heading info as well as the information table with all the holdings.  
+The info in the txt file is also contained in two xml files: primary_doc.xml and infoTable.xml.    
+The infoTable.xml can be easily parsed using the parseXML commands.  
+The problem is that each filer names the infoTable.xml differently (some call it infoTable.xml, some info13fTable etc.).    
+Fortunately, the name the filer gives to the info table .xml files is contained in the .txt files.    
+So our strategy is to grab the name of the infotable.xml file from the .txt file and then create a path to the infotable.xml file.    
+This means that for each filing we need to read in both the .txt file as well as the info table.xml file.    
+If you tried to extract the infotable.xml portion from .txt file, you will see that there were too many tags.    
+In the future one should probably also grab the the primary doc info.    
+```{r eval=FALSE}
+list_raw <- filter(list_all,V3 == "13F-HR") #take all the filings and keep only 13F filings
+write.csv(list_raw, file="list_raw.csv")
+list_raw <- read.csv("list_raw.csv")
+list <- list_raw
+#V5 variable has the path to the .txt file
+list$V5 <- as.character(list$V5) #turn the path into a character from a factor
+list$V2 <- gsub(",","",list$V2) #get rid of commas in names so that we can save as csv without quotes
+#Path variable will have the path to the info table .xml file
+#The path to the .xml file is the same as to the .txt file except it does not have dashes and the address is
+#sec.gov/Archives instead of "ftp: sec"
+list$path <- substr(list$V5,1,nchar(list$V5)-4) #create a new variable path
+list$path <- gsub("-","",list$path)
+list$path <- paste("https://www.sec.gov/Archives/", list$path, sep = "")
+list$V5 <- paste("ftp://ftp.sec.gov/",list$V5, sep = "") 
+#It looks like we  need to prepopulate some of the characteristics that we will be reading from the .txt file
+list$period <-0
+list$city <- ""
+list$state <- ""
+list$zip <- ""
+```
+We will run two loops, the first loop will read stuff in the .txt file (including the name of the .xml file).  
+The second loop will read the info table .xml file.  
+```{r eval=FALSE}
+for (i in 1:nrow(list)) {
+  txt <- readLines(list$V5[i], n=1000) #reads in the .txt file (We only need the first 1000 lines since the name of the xml file will be there)
+  l <- str_locate(txt,"<FILENAME>") #finds where the <FILENAME> tag is 
+  start <- max(which(l == 1)) #there are two <FILENAME> tags, I need the second one because that one refers to the info table xml
+  filename <- substr(noquote(txt[start]),11,10000) #extract the filename from that one line in .txt file skipping the <FILENAME> tag
+  list$path[i] <- paste(list$path[i],"/",filename, sep = "") #create a path to the info table .xml
+  #the code below grabs all kinds of data from the header, it strips the tags
+  #get reporting period
+  l <- str_locate(txt,"<periodOfReport>")
+  start <- min(which(l != "NA"))
+  value <- substr(noquote(txt[start]),0,100)
+  value <- substr(value,str_locate(value,">")[1]+1,str_locate(value,"</")[1]-1)
+  list$period[i] <- value
+  #get city
+  l <- str_locate(txt,"city>")
+  start <- min(which(l != "NA"))
+  value <- substr(noquote(txt[start]),0,100)
+  value <- substr(value,str_locate(value,">")[1]+1,str_locate(value,"</")[1]-1)
+  list$city[i] <- value
+  #get state
+  l <- str_locate(txt,"stateOrCountry>")
+  start <- min(which(l != "NA"))
+  value <- substr(noquote(txt[start]),0,100)
+  value <- substr(value,str_locate(value,">")[1]+1,str_locate(value,"</")[1]-1)
+  list$state[i] <- value
+  #get zip
+  l <- str_locate(txt,"zipCode>")
+  start <- min(which(l != "NA"))
+  value <- substr(noquote(txt[start]),0,100)
+  value <- substr(value,str_locate(value,">")[1]+1,str_locate(value,"</")[1]-1)
+  list$zip[i] <- value
+  if (i/10 == floor(i/10)) {print(i)}  #print every 10th value to monitor progress of the loop
+}
+```
+Get rid of commas.    
+```{r eval=FALSE}
+list$city <- gsub(",","",list$city)
+list$state <- gsub(",","",list$state)
+list$zip <- gsub(",","",list$zip)
+```
+Now to save the file and read it back into R to make sure everything worked.  
+```{r eval=FALSE}
+write.csv(list, file = "list2015q4.csv", quote=FALSE, row.names = FALSE)
+list <- read.csv("list2015q4.csv")
+```
+
+Data frame *all* will have all the filings piled up in it.  
+This will take at least two hours, and, depending on your computer, can take upwards of 4 or 5 hours.  
+```{r eval=FALSE}
+all <-data.frame() #creates inital empty dataframe to which each filing is added 
+```
+**DON'T OVERWRITE THIS IF YOU ARE DOING IT IN PARTS**
+```{r eval=FALSE}
+list$path <- as.character(list$path)
+for (i in  1:nrow(list)) {
+  t <- xmlToDataFrame(xmlParse(read_xml(list$path[i])))
+  t$cik <- list$V1[i]
+  all <- bind_rows(all,t)
+  if (i/10 == floor(i/10)) {print(i)}  #print every 10th value to monitor progress of the loop
+}
+```
+Some small cleaning code.  
+```{r eval=FALSE}
+all$value <- as.numeric(all$value)  #turn from character to numeric
+all$shrs2 <- str_trim(all$shrsOrPrnAmt) #get rid of spaces
+s <- str_locate(all$shrs2, "SH") #finds SH
+s2 <- str_locate(all$shrs2, "PRN") #finds PRN
+all$sflag <- ifelse(is.na(s2[,1]),"SH","PRN") # contains info on whether number of shares is SH or PRN
+all$shrs <- ifelse(all$sflag=="SH",as.numeric(substr(all$shrs2,1,s[,1]-1)),as.numeric(substr(all$shrs2,1,s2[,1]-1))) #put numberic number of shares or prn depending on flag
+all <- select(all, -shrsOrPrnAmt, -shrs2)
+```
+Get rid of all commas.  
+```{r eval=FALSE}
+all$nameOfIssuer <- gsub(",","",all$nameOfIssuer)
+all$titleOfClass <- gsub(",","", all$titleOfClass)
+all$cusip <- gsub(",","", all$cusip)
+all$investmentDiscretion <- gsub(",","", all$investmentDiscretion)
+all$otherManager <- gsub(",","-", all$otherManager)
+all$votingAuthority <- gsub(",","", all$votingAuthority)
+all$putCall <- gsub(",","", all$putCall)
+all$otherManager <- gsub("\n","",all$otherManager)
+all$nameOfIssuer <- gsub("\n","",all$nameOfIssuer)
+all$titleOfClass <- gsub("\n","", all$titleOfClass)
+all$cusip <- gsub("\n","", all$cusip)
+all$investmentDiscretion <- gsub("\n","", all$investmentDiscretion)
+all$otherManager <- gsub("\n","-", all$otherManager)
+all$votingAuthority <- gsub("\n","", all$votingAuthority)
+all$putCall <- gsub("\n","", all$putCall)
+```
+Now to save the all file, and load it back in to check to make sure everything worked.  
+```{r eval=FALSE}
+all <- select(all,nameOfIssuer, titleOfClass, cusip, value, shrs,sflag, investmentDiscretion, otherManager, votingAuthority, putCall, cik)
+write.csv(all, file = "all2015q4.csv" , quote=TRUE, row.names=FALSE)
+all2015q4 <- read.csv("all2015q4.csv")
+```

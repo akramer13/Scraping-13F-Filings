@@ -1,0 +1,107 @@
+---
+title: "cs2015q4"
+author: "Alex Kramer"
+date: "May 16, 2016"
+output: html_document
+---
+
+```{r eval=FALSE}
+setwd("myFolder")
+library(dplyr)
+library(data.table)
+```
+2015 Q4 -- Cosine Similarity  
+  
+First we need to load in the dataframes that we have saved in the end of the prior section.
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4clean5.csv")
+list2015q4 <- read.csv("list2015q4final.csv")
+```
+
+So, before we did not filter out Puts, Calls, or when there was Principal (PRN) listed. However, so that we are not miscalculating the cosine similarity, by incorrectly counting an overlap when one is a put and another is a call, we need to filter these out now. As a result, some of the AUM levels, number of stocks held, and total shares held, will change. However, we do not need to recalculate these right now, because those do not effect the cosine similarity algorithm that follow. So now, let's remove those specific holdings.
+```{r eval=FALSE}
+all2015q4 <- filter(all2015q4, sflag == "SH")
+all2015q4$putCall <- as.integer(all2015q4$putCall)
+all2015q4$putCall[is.na(all2015q4$putCall)] <- 0
+all2015q4 <- filter(all2015q4, putCall == 0)
+```
+
+Now we are going to select the fund, cusip, and individual weight for each position of each fund to split the data into lists and reassemble them.
+```{r eval=FALSE}
+funds2015q4 <- select(list2015q4, X, cik)
+funds2015q4 <- merge(all2015q4, funds2015q4, by = "cik")
+funds2015q4 <- select(funds2015q4, X.y, pctOfFund, cusip)
+colnames(funds2015q4)[colnames(funds2015q4) == 'X.y'] <- 'fund'
+colnames(funds2015q4)[colnames(funds2015q4) == 'pctOfFund'] <- 'weight'
+```
+
+Here is the game plan: loading up large data frames slows things down, even just putting one observation into a 17.4 million row dataframe takes forever, so we  are going to split data into lists and then reassemble them.  
+  
+There are two lists: 'list' which is the list of dataframes where each dataframe has holdings one fund's holdings.  
+
+Now to create the list file.
+```{r eval=FALSE}
+list <- split(funds2015q4, f = funds2015q4$fund)
+```
+One thing to notice is that the list2015 file has more distinct funds than the just-created list file. This is due to the fact that we removed some holdings from the all file due to them being puts and calls, so when we merged that pared-down all file with the list2015 file, some funds were removed entirely due to their portfolio makeup. 
+ 
+Then there is the list called 'cslist' which has dataframes for each fund and the fund's similarity to every other funds, this means each dataframe in this list has the same number of obs. The second nested loop code is going to take a long time to run. At least several hours!
+```{r eval=FALSE}
+cslist <- list()
+for (i in 1:length(list)) {
+  cslist[[i]] <- data.frame(cs=numeric(length = length(list)), 
+                            i=i,
+                            j=seq(1:length(list)))
+}
+```
+The reason we are using "full_join" below, rather than "inner_join" is important. At first glance, considering the cosine similarity equation, it would make sense that we are only interested in the cases where both fund i and fund j have an overlap in holdings. However, this is not entirely true. We also need to keep the dissimilar holdings in both funds because the denominator of the equation--which is the product of the square roots of the sum of squared-portfolio-holdings for fund i and fund j, respectively--is dependent on all of the holdings in a fund. Therefore, we cannot merge the lists in any way that will exclude any holdings for either fund. Additionally, we are using dplyr's "full_join" function rather than base R's "merge" function, with "all=T" as a parameter, because "full_join" runs much more quickly and will save you a lot of time running these loops. 
+```{r eval=FALSE}
+system.time(
+  for (i in 3226:length(list)) {
+    for (j in 1:length(list)) {
+      test <- full_join(list[[i]], list[[j]], by = "cusip")
+      test <- select(test, weight.x, weight.y)
+      test[is.na(test)] <- 0
+      test$prod <- test$weight.x*test$weight.y #product of the two weights
+      test$xsqr <- test$weight.x^2             #square of weight in first fund
+      test$ysqr <- test$weight.y^2             #square of weight in second fund
+      #calculate the cosine measure and put it in observation j in dataframe i in list cslist
+      cslist[[i]]$cs[j] <- (sum(test$prod))/(sqrt(sum(test$xsqr))*sqrt(sum(test$ysqr))) #cosine similarity equation
+    }
+    print(i)
+  }
+)
+```
+
+Reassemble cslist into one big 17 mil observations dataframe and save.
+```{r eval=FALSE}
+cs <- bind_rows(cslist)
+
+write.csv(cs, file = "cs2015q4.csv", row.names = FALSE)
+```
+
+CS List File  
+
+First, load in the cosine similarity file for the quarter at which we are looking, and the list file.
+```{r eval=FALSE}
+cs2015q4 <- read.csv("cs2015q4.csv")
+list2015q4 <- read.csv("list2015q4final.csv")
+```
+Now, we are going to strip down the list file and merge with the CS file, but twice, so that we have fund information for both fund *i* and fund *j*.  
+```{r eval=FALSE}
+list2015q4 <- select(list2015q4, aum, stocks, code, city, zip, COUNTRY, REGION, X)
+test <- merge(cs2015q4,list2015q4, by.x = "i", by.y = "X")
+test <- merge(test,list2015q4, by.x = "j", by.y = "X")
+```
+The below code adds a new variable that puts the aum level into 5 quantiles and puts the number of stocks into 5 quantiles
+```{r eval=FALSE}
+test <- setDT(test)[, aumquant.x := cut(aum.x, quantile(aum.x, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+test <- setDT(test)[, aumquant.y := cut(aum.y, quantile(aum.y, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+test <- setDT(test)[, stocksquant.x := cut(stocks.x, quantile(stocks.x, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+test <- setDT(test)[, stocksquant.y := cut(stocks.y, quantile(stocks.y, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+```
+And finally to save. 
+```{r eval=FALSE}
+write.csv(test, file = "cslist2015q4.csv", row.names = FALSE)
+cslist2015q4 <- read.csv("cslist2015q4.csv")
+```

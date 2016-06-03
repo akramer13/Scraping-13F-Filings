@@ -1,0 +1,169 @@
+---
+title: "summary2015q4"
+author: "Alex Kramer"
+date: "May 19, 2016"
+output: html_document
+---
+
+Here we are going to go through a number of ways that we can summarize and analyze the data.
+
+First let's load in the packages and data we need.  
+```{r eval=FALSE}
+setwd("myFolder")
+library(dplyr)
+library(stargazer)
+library(ggplot2)
+library(pastecs)
+
+all2015q4 <- read.csv("all2015q4clean5.csv")
+list2015q4 <- read.csv("list2015q4final.csv")
+cslist2015q4 <- read.csv("cslist2015q4.csv")
+```
+
+###Cosine Similarity:
+
+We want to eliminate duplicates in the cs file, so that we don't compare fund *i* to fund *i*, as this would just give us a cs of 1. Additionally, we want to make all of the quantile variables factors for easier summarization.
+```{r eval=FALSE}
+cs2015q4 <- filter(cslist2015q4, i.x != j.x)
+
+cs2015q4$aumquant.x <- as.factor(cs2015q4$aumquant.x)
+cs2015q4$aumquant.y <- as.factor(cs2015q4$aumquant.y)
+cs2015q4$stocksquant.x <- as.factor(cs2015q4$stocksquant.x)
+cs2015q4$stocksquant.y <- as.factor(cs2015q4$stocksquant.y)
+```
+
+Here are various slices of the data that you can run that are going to give general summary information for subsets such as purely New York funds, domestic or foreign funds, and specific AUM quantile levels.
+```{r eval=FALSE}
+#NY ONLY
+ny <- filter(cs2015q4, code.x == "NY" & code.y == "NY")
+stat.desc(ny$cs.x)
+#NY AGAINST EVERYONE ELSE
+ny1 <- filter(cs2015q4, code.x == "NY" & code.y != "NY")
+stat.desc(ny1$cs.x)
+#NY VS CA
+nyVca <- filter(cs2015q4, code.x == "NY" & code.y == "CA")
+stat.desc(nyVca$cs.x)
+
+#same code (meaning they are in the same state or country)
+test <- cs2015q4
+test$same <- ifelse(test$code.x == test$code.y, 1, 0)
+test1 <- filter(test, same == 1)
+test2 <- filter(test, same == 0)
+stat.desc(test1$cs.x)
+stat.desc(test2$cs.x)
+
+#American v American, Foreign v Foreign, American v Foreign
+us <- filter(cs2015q4, COUNTRY.x == "UNITED STATES" & COUNTRY.y == "UNITED STATES")
+stat.desc(us$cs.x)
+foreign <- filter(cs2015q4, COUNTRY.x != "UNITED STATES" & COUNTRY.y != "UNITED STATES")
+stat.desc(foreign$cs.x)
+usVforeign <- filter(cs2015q4, COUNTRY.x == "UNITED STATES" & COUNTRY.y != "UNITED STATES")
+stat.desc(usVforeign$cs.x)
+
+#AUM Sizes (Can do the same with stocks quantile)
+five <- filter(cs2015q4, aumquant.x == "5" & aumquant.y != "5")
+stat.desc(five$cs.x)
+five1 <- filter(cs2015q4, aumquant.x == "5" & aumquant.y == "5")
+stat.desc(five1$cs.x)
+```
+
+
+This is to create scatterplots that sumarize the cosine similarity data by different quantile levels. 
+```{r eval=FALSE}
+library(data.table)
+list2015q4 <- read.csv("list2015q4final.csv")
+cslist2015q4 <- read.csv("cslist2015q4.csv")
+list2015q3 <- read.csv("list2015q3final.csv")
+cslist2015q3 <- read.csv("cslist2015q3.csv")
+
+
+cik1 <- cslist2015q3 %>% group_by(i.x) %>% summarize(cs = mean(cs.x))
+cik2 <- cslist2015q4 %>% group_by(i.x) %>% summarize(cs = mean(cs.x))
+
+cik1 <- arrange(cik1, desc(cs))
+cik1$X <- 1:nrow(cik1)
+
+cik2 <- arrange(cik2, desc(cs))
+cik2$X <- 1:nrow(cik2)
+cik <- merge(cik1, cik2, by = "i.x")
+cik$change <- cik$X.x - cik$X.y
+
+list <- merge(cik, list2015q1, by.x = "i.x", by.y = "X")
+list <- select(list, i.x, cs.x, X.x, cs.y, X.y, change, aum, stocks, top10val)
+list <- merge(list, list2015q2, by.x = "i.x", by.y = "X")
+list$top10 <- NULL
+list$filedate <- NULL
+list$period <- NULL
+list$zip <- NULL
+list <- setDT(list)[, aumquant.x := cut(aum.x, quantile(aum.x, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+list <- setDT(list)[, aumquant.y := cut(aum.y, quantile(aum.y, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+list <- setDT(list)[, stocksquant.x := cut(stocks.x, quantile(stocks.x, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+list <- setDT(list)[, stocksquant.y := cut(stocks.y, quantile(stocks.y, probs=0:5/5), include.lowest=TRUE, labels=FALSE)]
+
+
+ggplot(list, aes(x = aumquant.x, y = X.x)) + geom_jitter(color = list$aumquant.x)
+ggplot(list, aes(x = stocksquant.x, y = (X.x+X.y)/2)) + xlab("Stock Quantile") + ylab("Cosine Similarity Rank") + 
+         geom_jitter(color = list$stocksquant.x) + ggtitle("Cosine Similarity by Stock Quantile")
+ggplot(list, aes(x = (aumquant.x + stocksquant.x)/2, y = (X.x+X.y)/2)) + geom_jitter() + xlab("Stock and AUM Quantile") + 
+  ylab("Cosine Similarity Rank") + ggtitle("Cosine Similarity by Stock and AUM Quantiles")
+```
+
+Heat map for strictly New York funds that are in the top quantiles for AUM size and stocks level.
+```{r eval=FALSE}
+ny <- filter(cs2015q4, code.x == "NY" & code.y == "NY")
+newyork <- ny %>% group_by(i.x, j.x, aumquant.x, aumquant.y, stocksquant.x, stocksquant.y) %>% summarize(cs = mean(cs.x))
+bigfunds <- filter(newyork, aumquant.x == 5 & aumquant.y == 5 & stocksquant.x == 5 & stocksquant.y == 5)
+bigfunds$X <- 1:nrow(bigfunds)
+
+test <- select(bigfunds, X, j.x)
+test$i.x <- NULL
+test$aumquant.x <- NULL
+test$aumquant.y <- NULL
+test$stocksquant.x <- NULL
+test <- test[1:65,]
+colnames(test)[colnames(test) == 'j.x'] <- 'i.x'
+bigfunds$X <- NULL
+
+test2 <- merge(bigfunds,test, by = "i.x")
+
+bigfunds$X <- 1:nrow(bigfunds)
+test <- select(bigfunds, X, j.x)
+test$i.x <- NULL
+test$aumquant.x <- NULL
+test$aumquant.y <- NULL
+test$stocksquant.x <- NULL
+test <- test[1:65,]
+
+test2 <- merge(test2,test, by = "j.x")
+
+
+test2$X.x <- as.factor(test2$X.x)
+test2$X.y  <- as.factor(test2$X.y)
+
+
+#This plot is only for 65 funds in New York, that are in the top quantiles for AUM and number of stocks
+ggplot(test2, aes(x=X.x, y=X.y, fill = cs)) + geom_tile() + 
+  scale_x_discrete(breaks=seq(0,65,2)) +
+  scale_y_discrete(breaks=seq(0,65,2)) +
+  xlab("Fund Number") + 
+  ylab("Fund Number") +
+  ggtitle("NY vs NY Funds - Top AUM and Stock Quantile Only")
+# + ggsave("NYvNYfunds.pdf", width = 11.5, height = 11.5)
+```
+
+Making a heat map for the seven largest states.
+```{r eval=FALSE}
+##Big States (NY, CA, MA, TX, IL, CT, PA)
+bigstates <- filter(cs2015q4, (code.x == "NY" | code.x == "CA" | code.x == "MA" | code.x == "TX" | code.x == "IL" | 
+                code.x == "CT" | code.x == "PA") & (code.y == "NY" | code.y == "CA" | code.y == "MA" | 
+                code.y == "TX" | code.y == "IL" | code.y == "CT" | code.y == "PA"))
+bigstates <- bigstates %>% 
+  group_by(code.x, code.y) %>% 
+  summarize(cs = mean(cs.x))
+ggplot(bigstates, aes(x=code.x, y=code.y, fill = cs)) + 
+  geom_tile() + 
+  xlab("State") +
+  ylab("State") + 
+  ggtitle("7 Largest States")
+# + ggsave("largeStates.pdf", width = 11.5, height = 11.5)
+```

@@ -1,0 +1,346 @@
+---
+title: "all2015q4"
+author: "Alex Kramer"
+date: "May 10, 2016"
+output: html_document
+---
+
+Now that we have the "list2015q4.csv" and "all2015q4.csv"" files, the next step is to add in the information on individual funds. Then we will go through the tedious and lengthy, though very important, process of cleaning the data and "smoothing" it out.  
+
+To add summary info to our **list** file, and to clean them up and fix inconsistencies, we are going to use the "all2015q4.R" file and run the code, which is copied below.  
+```{r eval=FALSE}
+#Set the working directory to wherever you have it set from before
+setwd("myFolder")
+library(dplyr)
+library(stringr)
+all2015q4 <- read.csv("all2015q4.csv")
+list2015q4 <- read.csv("list2015q4.csv")
+```
+We are going to start by only cleaning the **list** file. Then we will pare down and clean the all file.
+```{r eval=FALSE}
+names(list2015q4) <- c("X", "cik", "fund", "formtype", "filedate", "txtpath", "path", "period", "city", "state", "zip")
+list2015q4$filedate <- as.Date(list2015q4$filedate, "%Y-%m-%d")
+list2015q4$formtype <- NULL
+list2015q4$txtpath <- NULL
+list2015q4$path <- NULL
+```
+Now we need to work on the location issues. These are going to be specific to each quarter, so you should collapse the list file by distinct states, countries, etc. to determine what needs to be changed/revalued. There is no harm in running all of the standard issues that are accounted for below, because even if the misreported state do not occur, nothing will happen to the data. You will notice that all of the states follow a specific format, which are two alphanumeric characters. You can find a list of these codes on the SEC's website [here](https://www.sec.gov/edgar/searchedgar/edgarstatecodes.htm). I have also provided supplementary documents which include this information in a csv file.  
+```{r eval=FALSE}
+list2015q4$city <- toupper(list2015q4$city)
+library(plyr)
+revalue(list2015q4$state, c(" Grand Cayman" = "E9")) -> list2015q4$state
+revalue(list2015q4$state, c(" GRAND CAYMAN" = "E9")) -> list2015q4$state
+revalue(list2015q4$state, c("CA." = "CA")) -> list2015q4$state
+revalue(list2015q4$state, c(" Nsw" = "C3")) -> list2015q4$state
+revalue(list2015q4$state, c(" NSW" = "C3")) -> list2015q4$state
+revalue(list2015q4$state, c(" NSW 2000" = "C3")) -> list2015q4$state
+revalue(list2015q4$state, c(" CHANNEL ISLANDS" = "X0")) -> list2015q4$state
+revalue(list2015q4$state, c(" ISLE OF MAN" = "Y8")) -> list2015q4$state
+revalue(list2015q4$state, c(" JAPAN" = "M0")) -> list2015q4$state
+revalue(list2015q4$state, c(" Ontario" = "A6")) -> list2015q4$state
+revalue(list2015q4$state, c(" ONTARIO" = "A6")) -> list2015q4$state
+revalue(list2015q4$state, c(" QUEBEC" = "A8")) -> list2015q4$state
+revalue(list2015q4$state, c(" SCOTLAND" = "X0")) -> list2015q4$state
+revalue(list2015q4$state, c(" TOKYO" = "M0")) -> list2015q4$state
+revalue(list2015q4$state, c(" UNITED KINGDOM" = "X0")) -> list2015q4$state
+colnames(list2015q4)[colnames(list2015q4) == 'state'] <- 'code'
+#There may be issues where you need to manually hardcode in a state (an example of which is shown in the line below) so keep an eye out for them.
+#list2015q4[2067,10] <- "KY"
+revalue(list2015q4$code, c(" Scotland" = "X0")) -> list2015q4$code
+revalue(list2015q4$code, c(" BUNKYO-KU" = "M0")) -> list2015q4$code
+revalue(list2015q4$code, c(" SWITZERLAND" = "V8")) -> list2015q4$code
+detach("package:plyr", unload=TRUE)
+detach("package:dplyr", unload=TRUE)
+library(dplyr)
+```
+Save your work here. 
+```{r eval=FALSE}
+write.csv(list2015q4, file = "list2015q4.csv", quote=FALSE, row.names = FALSE)
+list2015q4 <- read.csv("list2015q4.csv")
+```
+Now that the list codes are fixed, merge in location based information.  
+Remove the state names because it would be blank for any foreign fund, which is not desirable.  
+However, Canadian funds are categorized slightly as follows:  
+A0 = Alberta, A1 = British Columbia, A2 = Manitoba, A3 = New Brunswick, A4 = Newfoundland, A5 = Nova Scotia, A6 = Ontario, A7 = Prince Edward Island, A8 = Quebec, A9 = Saskatchewan, B0 = Yukon.  
+Region categories are: CARRIBEAN ISLANDS, EAST ASIA, EUROPE, MIDDLE EAST, NORTH AMERICA, OCEANIA, SOUTH & SOUTHEAST ASIA, SOUTH AMERICA, SUB-SAHARAN AFRICA, WEST ASIA.
+```{r eval=FALSE}
+locinfo <- read.csv("Location Codes.csv")
+list2015q4 <- merge(list2015q4, locinfo, by.x = "code", by.y = "CODE")
+list2015q4 <- list2015q4[,c(2:7,1,8:10)]
+list2015q4$REGION <- toupper(list2015q4$REGION)
+write.csv(list2015q4, file = "list2015q4.csv", row.names = FALSE)
+list2015q4 <- read.csv("list2015q4.csv")
+```
+
+Now we are going to work extensively on the all file, which will cover cusip issues, position sizes, missing data etc.
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4.csv")
+```
+
+First we clean up all puts and calls.  
+```{r eval=FALSE}
+#all2015q4 <- filter(all2015q4, sflag == "SH") (Let's not do this yet, so let's keep in principal)
+as.data.frame(table(all2015q4$putCall))
+library(plyr)
+revalue(all2015q4$putCall, c("Call   " = "Call")) -> all2015q4$putCall
+revalue(all2015q4$putCall, c("Put   " = "Put")) -> all2015q4$putCall
+detach("package:plyr", unload=TRUE)
+detach("package:dplyr", unload=TRUE)
+library(dplyr)
+#all2015q4$putCall <- as.integer(all2015q4$putCall) #In the past we filtered out puts and calls, but that's up to your discretion
+#all2015q4$putCall[is.na(all2015q4$putCall)] <- 0
+#all2015q4 <- filter(all2015q4, putCall == 0)
+all2015q4 <- group_by(all2015q4, cik)
+```
+There are NAs in: shrs, votingAuthority, otherManager, investmentDiscretion, value, cusip, titleOfClass, nameOfIssuer
+Remove NA and 0 and "No issuers to report" and "N/A" nameOfIssuer
+```{r eval=FALSE}
+all2015q4 <- all2015q4[!(all2015q4$nameOfIssuer == "No issuers to report"), ] #filters out 'No issuers to report'
+all2015q4 <- all2015q4[!(is.na(all2015q4$nameOfIssuer)), ] #filters out NA
+all2015q4 <- all2015q4[!(all2015q4$nameOfIssuer == "0"), ] #filters out 0
+all2015q4 <- all2015q4[!(all2015q4$nameOfIssuer == "N/A"), ] #filters out 'N/A'
+```
+Delete rows where (first) shrs = 0 and (second) where value = 0. I do shares first because there are some instances where there are 0 shares but greater than 0 value.
+```{r eval=FALSE}
+all2015q4 <- filter(all2015q4, shrs != 0 & value != 0)
+all2015q4 <- all2015q4[!(all2015q4$shrs == 0), ]
+all2015q4 <- all2015q4[!(all2015q4$value == 0), ]
+```
+Save your work here.  
+The new filename is going to be quarter then "clean1"
+```{r eval=FALSE}
+all2015q4$investmentDiscretion <- NULL
+all2015q4$otherManager <- NULL
+all2015q4$votingAuthority <- NULL
+write.csv(all2015q4, file = "all2015q4clean1.csv")
+```
+Below is more cusip information that needs fixing. Again, the problems that arise each quarter are unique to that quarter, so this will serve as a guideline for how to go about looking at each quarter and making sure the cusip information (which is very important) is accurate. 
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4clean1.csv")
+#These lines currently blocked off are specifics that may only apply to a certain period, with certain misfiled filings. You should look into the cusips for each quarter and not only get a feel for what is mislabeled, but which positions are of material size, and need to be hardcoded/manually tweaked to not miss something important, as shown below.  
+
+#library(plyr)
+#revalue(all2015q4$cusip, c("00BFG3KF2" = "G65431101")) -> all2015q4$cusip
+#revalue(all2015q4$cusip, c("84670702" = "084670702")) -> all2015q4$cusip
+#detach("package:plyr", unload=TRUE)
+#detach("package:dplyr", unload=TRUE)
+#library(dplyr)
+
+#first need to make everything upper case for cusips to align better
+all2015q4$cusip <- toupper(all2015q4$cusip)
+
+test <- filter(all2015q4, cusip == 0)
+all2015q4[152775,4] <- "025537101"
+all2015q4[152794,4] <- "084670207"
+all2015q4[152931,4] <- "97717X701"
+all2015q4[152952,4] <- "780905881"
+all2015q4[152954,4] <- "01609W102"
+all2015q4[552523,4] <- "372460105"
+all2015q4[552706,4] <- "641069406"
+all2015q4 <- all2015q4[!(all2015q4$cusip == "0"), ] #filters out 0
+all2015q4 <- all2015q4[!(is.na(all2015q4$cusip)), ] #filters out NA
+```
+
+**ADDITIONALL CUSIP STUFF THAT SHOULD CLEAN SOME OF THE ISSUES**
+
+Should look into trimming leading and trailing whitespace...check to see if there are any spaces or maybe non alphanumeric characters?
+```{r eval=FALSE}
+trim <- function (x) gsub("^\\s+|\\s+$", "", x) #this function trims leading and trailing whitespace
+library(stringi)
+all2015q4$cusip <- trim(all2015q4$cusip)
+all2015q4$cusip <- as.character(all2015q4$cusip)
+```
+We are going to save now before we change any more cusip stuff, just overwriting the prior all file.
+```{r eval=FALSE}
+write.csv(all2015q4, file = "all2015q4clean1.csv", row.names = FALSE)
+```
+
+Now to pad the CUSIPs of length 6-8 with leading zeroes to make the cusips line up better
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4clean1.csv")
+all2015q4$cusip <- as.character(all2015q4$cusip)
+all2015q4$length <- nchar(all2015q4$cusip)
+all2015q4$cusip <- ifelse((all2015q4$length < 9 & all2015q4$length > 5), stri_pad(all2015q4$cusip, width=9, pad="0"), all2015q4$cusip)
+all2015q4$length <- nchar(all2015q4$cusip)
+```
+Now let's deal with any of the cusip issues where the lengths are less than 9 (and after padding these will all be less than 6 now)
+```{r eval=FALSE}
+cusips <- filter(all2015q4, length < 9) #so this tells us there are 223 cusips still needing some work
+#So I noticed that one fund, with CIK = 1632549, switched it's titleOfClass and CUSIP values, so let's fix this
+test <- filter(all2015q4, cik == 1632549)
+colnames(test)[colnames(test) == 'titleOfClass'] <- 'cusipX'
+colnames(test)[colnames(test) == 'cusip'] <- 'titleOfClass'
+colnames(test)[colnames(test) == 'cusipX'] <- 'cusip'
+all2015q4 <- filter(all2015q4, cik != 1632549)
+test <- test[,c(1,2,4,3,5:10)] 
+all2015q4 <- rbind(all2015q4,test)
+all2015q4$length <- nchar(all2015q4$cusip)
+all2015q4$X <- NULL
+all2015q4$X <- 1:nrow(all2015q4)
+all2015q4 <- arrange(all2015q4,X)
+all2015q4 <- all2015q4[,c(10,1:9)]
+
+cusips <- filter(all2015q4, length < 9) 
+
+all2015q4[107581,4] <- "N39338194"
+all2015q4[150653,4] <- "922908645"
+all2015q4[452940,4] <- "689164101"
+all2015q4[886772,4] <- "78468R705"
+all2015q4[889118,4] <- "29272C103"
+all2015q4[893304,4] <- "78464A490"
+all2015q4[893305,4] <- "73935S105"
+all2015q4[893306,4] <- "88224Q107"
+all2015q4[925787,4] <- "73935A104"
+all2015q4[966741,4] <- "03765N108"
+all2015q4[1059780,4] <- "025816109"
+all2015q4[1059781,4] <- "037833100"
+all2015q4[1059783,4] <- "097023105"
+all2015q4$length <- nchar(all2015q4$cusip)
+```
+
+Save this now as "clean2"
+```{r eval=FALSE}
+write.csv(all2015q4, file = "all2015q4clean2.csv", row.names = FALSE)
+```
+**End of CUSIP Section**
+
+Everything below is the value fixing section (where roughly 80, depending on the quarter, funds will have their values reduced by a factor of 1000).    
+Now to check to see which funds are misreporting their values and revise them for consistency.  
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4clean2.csv")
+all2015q4$price <- (all2015q4$value/all2015q4$shrs)*1000
+highprice <- filter(all2015q4, price > 1000)
+count <- as.data.frame(count(highprice, cik))
+count2 <- as.data.frame(count(all2015q4, cik)) #by taking % of stocks above $1000, we can determine misreporting
+colnames(count2)[colnames(count2) == 'n'] <- 'stocks'
+merged <- merge(count, count2, by.x = "cik", by.y = "cik")
+merged$amt <- (merged$n/merged$stocks)*100
+
+#Before we set the filter that will account for the misreporting funds, we need to actually look at the funds to really understand whether or not they misreported or not. I compare my AUM sums to that of the AUM amounts listed on whalewisdom.com. You want to look for any AUM levels that are already high (above $100M) and where the total number of stocks are low (less than 15) to see if its misreporting or just an outlier...
+
+collapsed <- all2015q4 %>%
+  group_by(cik) %>%
+  summarise(aum = sum(value), shares = sum(shrs)) #this gives us AUM
+list <- select(list2015q4, cik, fund)
+list <- merge(list, collapsed, by = "cik")
+merged2 <- select(merged, cik, stocks, amt)
+list <- merge(list, merged2, by = "cik")
+#Of all the funds that had over 50% of potentially misreported value levels...only a few were actually correct, and will be omitted from the below value decrease. The cik's which I will be omitting are: 1588012, 1520770.
+merged <- filter(merged, amt > 60) #currently we are setting the minimum percentage that is necessary to conclude misreporting at >60%
+merged <- filter(merged, cik != 1588012 & cik != 1520770)
+merged$n <- NULL
+merged$stocks <- NULL
+merged$amt <- NULL
+merged2 <- merge(merged, all2015q4, by.x = "cik", by.y = "cik")
+merged2$newval <- merged2$value/1000
+merged2$value <- NULL
+colnames(merged2)[colnames(merged2) == 'newval'] <- 'value'
+#We are going to remove all the rows (there are 41,138) of the funds that misreported, and then bind the revised numbers back together with the all2015q4.csv file to get the original 1,547,123 rows.
+merged3 <- dput(as.character(merged))
+#We get this list from the merged3 <- dput(as.character(target)) command that you ran, and then just copied it in below.
+#Additionally, there was one cik number that was: "\n1579668", so you NEED to manually deleted the "\n"
+target <- c(5272, 225816, 719245, 769954, 808722, 860828, 887777, 1002912, 1006407, 1034549, 1035350, 1036288, 1039565, 1050743, 1071640, 
+            1083323, 1103653, 1109767, 1111629, 1129770, 1132716, 1134152, 1166588, 1171592, 1177244, 1238990, 1270341, 1278249, 1307878, 
+            1334199, 1344717, 1351731, 1353394, 1353651, 1387399, 1387869, 1399794, 1407737, 1408324, 1409728, 1410588, 1411784, 1427350, 
+            1447228, 1456075, 1456670, 1476380, 1486066, 1505896, 1532292, 1535172, 1539994, 1540138, 1557689, 1560009, 1569119, 1569855, 
+            1569884, 1569886, 1579668, 1579853, 1592643, 1597409, 1597858, 1599620, 1602237, 1623883, 1624741, 1624758, 1630939, 1632554, 
+            1632932, 1633207, 1633389, 1633896, 1635663, 1639943, 1640485, 1652391, 1666256, 1667109, 1667553)
+all2015q4 <- filter(all2015q4, !cik %in% target) 
+all2015q4 <- rbind(all2015q4, merged2)
+#all2015q4$sflag <- NULL #I am going to leave this up to the discretion of the user again here.
+```
+Save your work again here.
+```{r eval=FALSE}
+all2015q4 <- arrange(all2015q4, X)
+write.csv(all2015q4, file = "all2015q4clean3.csv")
+all2015q4 <- read.csv("all2015q4clean3.csv")
+```
+
+One option going forward is to filter out any funds that have an AUM less than $100 million, or with a certain number of shares, but that is up to the user's discretion.
+
+This collapses down by value and shares.
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4clean3.csv")
+all2015q4$X.1 <- NULL
+#collapse down by cusip and if it's a put/call and add shares/value to condense dataframe down...currently at 1,547,123
+all2015q4 <- all2015q4 %>% group_by(cik,cusip,putCall) %>% 
+  summarize(value1 = sum(value), shrs = sum(shrs), name = first(nameOfIssuer), sflag = first(sflag),title = first(titleOfClass))
+#brings us down to 1,100,863
+#Now we are going to calculate the AUM of, and total shares held, by each fund
+all2015q4 <- all2015q4 %>% group_by(cik) %>% mutate(aum = sum(value1),totshrs = sum(shrs))
+colnames(all2015q4)[colnames(all2015q4) == 'value1'] <- 'value'
+#display each holding as a percentage of the fund's total portfolio
+all2015q4$pctOfFund <- (all2015q4$value / all2015q4$aum) * 100
+all2015q4$pctOfFund <- round(all2015q4$pctOfFund, 2)
+#this counts number of stocks held by each fund
+count <- as.data.frame(count(all2015q4, cik))
+#now to merge into funds the new information
+all2015q4 <- merge(all2015q4, count, by.x = "cik", by.y = "cik")
+colnames(all2015q4)[colnames(all2015q4) == 'n'] <- 'stocks'
+```
+Let's save here and create a 4th file.
+
+```{r eval=FALSE}
+write.csv(all2015q4, file = "all2015q4clean4.csv")
+all2015q4 <- read.csv("all2015q4clean4.csv")
+```
+
+Now to merge in the funds data into the all file.
+```{r eval=FALSE}
+all2015q4 <- read.csv("all2015q4clean4.csv")
+list2015q4 <- read.csv("list2015q4.csv")
+all2015q4 <- merge(x=all2015q4, y=list2015q4, by.x = "cik", by.y = "cik")
+#remove unnecessary columns and then reorder
+all2015q4$X.x <- NULL
+all2015q4$X.y <- NULL
+all2015q4$filedate <- NULL
+all2015q4$period <- NULL
+all2015q4$zip <- NULL
+all2015q4$COUNTRY <- NULL
+all2015q4$REGION <- NULL
+all2015q4 <- all2015q4[,c(13,6,4,5,11,9,10,12,8,7,3,14,15,2,1)]
+#make all cusip, fund, nameOfIssuer, and titleOfClass letters uppercase
+all2015q4$cusip <- toupper(all2015q4$cusip)
+all2015q4$fund <- toupper(all2015q4$fund)
+all2015q4$title <- toupper(all2015q4$title)
+all2015q4$city <- toupper(all2015q4$city)
+all2015q4$sflag <- toupper(all2015q4$sflag)
+all2015q4$putCall <- toupper(all2015q4$putCall)
+all2015q4$name <- toupper(all2015q4$name)
+```
+
+Let's save here and create a 5th file.
+
+```{r eval=FALSE}
+write.csv(all2015q4, file = "all2015q4clean5.csv")
+all2015q4 <- read.csv("all2015q4clean5.csv")
+```
+We have just over 25k distinct cusips, but there are still many that are too short, and are just incorrect so we are going to try to clean these up some more.
+```{r eval=FALSE}
+test <- all2015q4
+test$cusip <- as.character(test$cusip)
+test$length <- nchar(test$cusip)
+length <- as.data.frame(table(test$length))
+test2 <- filter(test, length == 10)
+all2015q4[1046537,15] <- "45378A106"
+all2015q4$X <- NULL
+write.csv(all2015q4, file = "all2015q4clean5.csv")
+all2015q4 <- read.csv("all2015q4clean5.csv")
+```
+
+Now to overwrite the list2015q4 file just to include some extra summary stats and then re-write the .csv file.
+```{r eval=FALSE}
+
+list2015q4 <- read.csv("list2015q4.csv")
+collapse <- all2015q4 %>% group_by(cik) %>% summarize(aum = mean(aum), totshrs = mean(totshrs), stocks = mean(stocks))
+list2015q4 <- merge(list2015q4, collapse, by = "cik")
+#we have a duplicate fund cik of 801166
+list2015q4 <- list2015q4[-196,]
+list2015q4$X <- NULL
+list2015q4 <- arrange(list2015q4, cik)
+list2015q4$X <- 1:nrow(list2015q4)
+list2015q4 <- list2015q4[,c(13,2,10,12,11,5:9,3,4,1)]   
+write.csv(list2015q4, "list2015q4final.csv", row.names = FALSE)
+list2015q4 <- read.csv("list2015q4final.csv")
+```
+
