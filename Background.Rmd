@@ -1,0 +1,20 @@
+---
+title: "Background"
+author: "Alex Kramer"
+date: "June 3, 2016"
+output: html_document
+---
+
+##13F Filings Background  
+  
+Institutional investment managers exercising investment discretion of over $100 million in Section 13(f) Securities are required to disclose their quarterly holdings withing 45 of the quarter end date. Section 13(f) Securities generally include equity securities that trade on an exchange (i.e. NASDAQ), equity options, convertible bonds, and shares of closed-end investment companies. Short positions and private securities do not require disclosure. The official list of Section 13(f) Securities can be found on the SEC's website [here](https://www.sec.gov/divisions/investment/13flists.htm).  
+
+####Problems with 13F Filings  
+
+There are a number of limitations in the 13F data. First, 13F data do not provide insight into intraquarter institutional trades, and the 45 day grace period from quarter end for disclosure mean that these filings are potentially already outdated, or are not reflective of intraquarter trading activity. Second, the data only reveal long equity positions. A considerable number of institional investment funds are hedge funds whose portfolios rely fundamentally on leverage and the use of short positions which are not observable in the 13F data. Also unobservable, the data do not provide information for classifying funds individually (e.g. hedge fund, mutual fund, bank, etc.). Finally, there exists an exception where investment managers can request confidential treatment of some or all of their positions to delay disclosure. While my code actively removes filings that are disclosed after the 45 day disclosure period, one can choose to keep these filings, but he should be careful in doing this so as not to confuse filing periods.  
+
+While these are just some of the most significant issues of which one should be aware regarding 13F filings, [this](http://www.marketfolly.com/2012/10/hedge-fund-13f-filing-pros-and-cons.html) article from Market Folly provides some more insight into the issues with 13F filings.
+
+####Sample 13F Filing:  
+
+![](http://graphics8.nytimes.com/images/2014/08/14/business/dbpix-hedge-sec/dbpix-hedge-sec-blog480.png)  
