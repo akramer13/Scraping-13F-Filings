@@ -1,6 +1,6 @@
 #Scraping 13F Filings
 
-As part of my undergraduate thesis, I learned R and wrote code to catalog 13F filings from the SEC to analyze the similarity between the long equity portfolios of institutional investment funds. In the following sections, I will provide some background information on the 13F filings, explain how I scraped the information, the steps I had to take to clean and smooth the data, and provide some potential future applications of the data.  
+As part of my undergraduate thesis, I learned R and wrote code to catalog 13F filings from the SEC to analyze the similarity between the long equity portfolios of institutional investment funds. In the following sections, I will explain how I scraped the 13F filings, the steps I had to take to clean and smooth the data, and provide some potential future applications of the data.  
 
 
 ##Section 1: Scraping the 13F Filings (get13f2015q4.Rmd)    
