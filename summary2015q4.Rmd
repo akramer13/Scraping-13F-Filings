@@ -1,6 +1,6 @@
 ---
 title: "summary2015q4"
-author: "Alex Kramer"
+author: "Alex K"
 date: "May 19, 2016"
 output: html_document
 ---
