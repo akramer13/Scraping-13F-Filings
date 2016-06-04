@@ -1,6 +1,6 @@
 ---
 title: "get13f2015q4"
-author: "Alex Kramer"
+author: "Alex K"
 date: "May 10, 2016"
 output: html_document
 ---
