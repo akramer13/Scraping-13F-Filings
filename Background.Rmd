@@ -1,6 +1,6 @@
 ---
 title: "Background"
-author: "Alex Kramer"
+author: "Alex K"
 date: "June 3, 2016"
 output: html_document
 ---
