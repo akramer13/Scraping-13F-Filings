@@ -4,7 +4,7 @@ author: "Alex K"
 date: "May 19, 2016"
 output: html_document
 ---
-Before going into the summary information that deals with cosine similarity, we can see some summary information about the 2015 Q4 filings in an RPub at [thos](http://rpubs.com/akrame13/188110) link.
+Before going into the summary information that deals with cosine similarity, we can see some summary information about the 2015 Q4 filings in an RPub at [this](http://rpubs.com/akrame13/188110) link.
 
 
 Here we are going to go through a number of ways that we can summarize and analyze the data.
